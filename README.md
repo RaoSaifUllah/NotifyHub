@@ -163,8 +163,8 @@ verification is claimed.
 See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-AGPL-3.0-only is proposed and awaits the owner's explicit confirmation.
-No license grant is currently provided. Source publication was explicitly requested
-before license selection; publishing the source does not adopt AGPL automatically.
+NotifyHub is licensed under **GNU Affero General Public License v3.0 only**
+(**AGPL-3.0-only**). See [LICENSE](LICENSE) for the full terms.
+Dependency licenses remain governed by their respective terms.
 The owner has requested the GitHub source push; external deployment and live
 notifications require separate authorization.

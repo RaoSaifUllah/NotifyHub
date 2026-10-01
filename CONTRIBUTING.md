@@ -8,4 +8,6 @@ database with migration, write and restricted read roles. Never use production d
 Keep Domain free of infrastructure; repositories do not commit independently.
 Add authorization, tenant isolation and meaningful negative tests to changes.
 Do not send real provider notifications during automated tests.
-No remote/push/publication is authorized. License selection remains pending.
+NotifyHub is licensed under AGPL-3.0-only; see LICENSE. The owner has authorized
+source publication to the NotifyHub GitHub repository. External deployment and
+live provider notifications require separate authorization.

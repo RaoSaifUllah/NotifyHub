@@ -138,7 +138,7 @@ Screenshots in document/screenshots use mocked health responses, without fake de
    remain unexecuted. ASVS control-by-control evidence is not complete.
 6. Docker is needed for later Compose gates. Hosted CI is authored with postgres:18.6,
    but unexecuted. Supply-chain action SHA pinning/scanning remains Phase 6 work.
-7. Git repository URL and AGPL-3.0-only confirmation are required before publication.
+7. Owner supplied the GitHub repository and confirmed AGPL-3.0-only on 2026-10-01.
    Owner subsequently requested the GitHub source push. Git initialized only inside
    NotifyHub and origin configured; owner renewed source-push authorization while requesting a license explanation.
    No external deployment or live notifications occurred.
@@ -179,3 +179,14 @@ Prepared publication without adding a LICENSE or treating the request as license
 Frontend, backend, README, tests and project documentation published as a development preview.
 Local database credentials and generated artifacts remain excluded. No application deployment
 or live notifications occurred. License adoption remains pending.
+
+## AGPL-3.0-only adoption — 2026-10-01
+Owner explicitly requested applying and pushing AGPL v3 after receiving the explanation.
+NotifyHub adopts AGPL-3.0-only, without the "or later" option.
+LICENSE contains the official GNU AGPL v3 text downloaded from gnu.org and checked
+for the title, version and network-interaction section. README and contributor
+guidance now identify the adopted license; earlier pending-license notes above
+describe the preceding history and are superseded by this adoption.
+No runtime behavior or dependency versions changed. Full application test suites
+were not repeated for this license/documentation-only increment.
+Implementation remains 15% done / 85% pending, with module percentages unchanged.
