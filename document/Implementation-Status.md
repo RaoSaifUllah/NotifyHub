@@ -190,3 +190,11 @@ describe the preceding history and are superseded by this adoption.
 No runtime behavior or dependency versions changed. Full application test suites
 were not repeated for this license/documentation-only increment.
 Implementation remains 15% done / 85% pending, with module percentages unchanged.
+## Publishing workflow change — 2026-10-01
+Owner instructed future changes to merge into main locally and push main directly,
+without GitHub Actions. Existing CI YAML moved to .github/disabled-workflows/ci.yml
+so it is retained as reference but no longer registered as an active workflow.
+Local build, unit, PostgreSQL, provider-contract and browser checks remain required
+as appropriate. Future hosted CI work in the development plan is superseded by this
+owner instruction until explicitly changed. No active YAML workflows remain.
+Implementation percentages are unchanged: 15% done / 85% pending.

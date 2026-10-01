@@ -11,3 +11,10 @@ Do not send real provider notifications during automated tests.
 NotifyHub is licensed under AGPL-3.0-only; see LICENSE. The owner has authorized
 source publication to the NotifyHub GitHub repository. External deployment and
 live provider notifications require separate authorization.
+
+## Local verification and publishing
+Run meaningful checks locally before publishing changes.
+Merge development branches into main locally, then push main directly.
+Do not use GitHub Actions or action-based merge/deployment automation.
+The authored CI workflow is archived in .github/disabled-workflows/ci.yml,
+outside GitHub's active workflows directory.
