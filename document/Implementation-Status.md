@@ -140,7 +140,7 @@ Screenshots in document/screenshots use mocked health responses, without fake de
    but unexecuted. Supply-chain action SHA pinning/scanning remains Phase 6 work.
 7. Git repository URL and AGPL-3.0-only confirmation are required before publication.
    Owner subsequently requested the GitHub source push. Git initialized only inside
-   NotifyHub and origin configured; push awaits explicit license confirmation.
+   NotifyHub and origin configured; owner renewed source-push authorization while requesting a license explanation.
    No external deployment or live notifications occurred.
 
 ## ADRs and changed areas
@@ -172,3 +172,5 @@ patterns, after reviewing and excluding the synthetic example.test parser fixtur
 This limited scan is not a full security assessment. Push is pending the owner's
 required AGPL-3.0-only confirmation. Implementation remains 15% done / 85% pending;
 module percentages above are unchanged by publication preparation.
+Owner explicitly renewed the source-push request and asked for an AGPL explanation.
+Prepared publication without adding a LICENSE or treating the request as license adoption.

@@ -164,6 +164,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
 AGPL-3.0-only is proposed and awaits the owner's explicit confirmation.
-No license grant is currently provided. Publication is pending that confirmation.
+No license grant is currently provided. Source publication was explicitly requested
+before license selection; publishing the source does not adopt AGPL automatically.
 The owner has requested the GitHub source push; external deployment and live
 notifications require separate authorization.
