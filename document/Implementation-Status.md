@@ -174,3 +174,8 @@ required AGPL-3.0-only confirmation. Implementation remains 15% done / 85% pendi
 module percentages above are unchanged by publication preparation.
 Owner explicitly renewed the source-push request and asked for an AGPL explanation.
 Prepared publication without adding a LICENSE or treating the request as license adoption.
+
+2026-10-01: git push -u origin main succeeded; main tracks origin/main.
+Frontend, backend, README, tests and project documentation published as a development preview.
+Local database credentials and generated artifacts remain excluded. No application deployment
+or live notifications occurred. License adoption remains pending.
