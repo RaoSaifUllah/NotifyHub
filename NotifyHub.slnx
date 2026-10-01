@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/backend/" />
+  <Folder Name="/backend/src/">
+    <Project Path="backend/src/NotifyHub.Api/NotifyHub.Api.csproj" />
+    <Project Path="backend/src/NotifyHub.Application/NotifyHub.Application.csproj" />
+    <Project Path="backend/src/NotifyHub.Domain/NotifyHub.Domain.csproj" />
+    <Project Path="backend/src/NotifyHub.Infrastructure/NotifyHub.Infrastructure.csproj" />
+    <Project Path="backend/src/NotifyHub.Worker/NotifyHub.Worker.csproj" />
+  </Folder>
+  <Folder Name="/backend/tests/">
+    <Project Path="backend/tests/NotifyHub.IntegrationTests/NotifyHub.IntegrationTests.csproj" />
+    <Project Path="backend/tests/NotifyHub.UnitTests/NotifyHub.UnitTests.csproj" />
+  </Folder>
+  <Folder Name="/scripts/">
+    <Project Path="scripts/NotifyHub.Database/NotifyHub.Database.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,53 @@
+name: NotifyHub verification
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18.6
+        env:
+          POSTGRES_DB: notifyhub_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-disposable-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d notifyhub_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.11.0'
+          cache: npm
+          cache-dependency-path: Frontend/package-lock.json
+      - run: dotnet tool restore
+      - run: dotnet restore NotifyHub.slnx --locked-mode
+      - run: dotnet build NotifyHub.slnx --no-restore -warnaserror
+      - run: dotnet test backend/tests/NotifyHub.UnitTests --no-build
+      - name: Provision isolated PostgreSQL roles and migrations
+        shell: pwsh
+        run: ./scripts/Initialize-CiDatabase.ps1
+      - name: PostgreSQL and API integration tests
+        shell: pwsh
+        run: ./scripts/Test-PostgreSql.ps1
+      - run: npm ci
+        working-directory: Frontend
+      - run: npm run build
+        working-directory: Frontend
+      - run: npx playwright install --with-deps chromium
+        working-directory: Frontend
+      - run: npm run test:e2e
+        working-directory: Frontend
+# Provider/full journey/security scanning/image/SBOM jobs remain Phase 4–6 work.
+# Authored locally; hosted results must be inspected after the owner-authorized source push.

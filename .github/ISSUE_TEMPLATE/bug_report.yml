@@ -1,0 +1,13 @@
+name: Bug report
+description: Report reproducible behavior without secrets or personal data
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps and expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Version, environment and redacted diagnostics
