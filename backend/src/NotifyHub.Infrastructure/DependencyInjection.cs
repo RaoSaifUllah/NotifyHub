@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddSingleton<ITokenSecrets, TokenSecrets>();
         services.AddScoped<ISessionRepository, SessionRepository>();
         services.AddScoped<IAccountRepository, AccountRepository>();
+        services.AddScoped<IAccountBootstrap, AccountBootstrap>();
         services.AddScoped<IWorkspaceMembershipRepository, WorkspaceMembershipRepository>();
         services.AddScoped<MembershipService>();
         services.AddScoped<IWorkspaceRepository, WorkspaceRepository>();

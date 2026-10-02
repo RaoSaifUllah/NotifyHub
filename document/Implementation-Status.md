@@ -1,5 +1,5 @@
 # Implementation status
-Updated: 2026-10-01 (Asia/Karachi). NotifyHub v1 is incomplete.
+Updated: 2026-10-02 (Asia/Karachi). NotifyHub v1 is incomplete.
 Percentages are estimates of implementation scope, not coverage, certification or assurance.
 
 ## Milestone progress
@@ -7,21 +7,21 @@ Percentages are estimates of implementation scope, not coverage, certification o
 |---|---|---:|---:|
 | 0 Baseline and decisions | Verified local skeleton exit checks | 100% | 0% |
 | 1 Architecture and persistence | Verified foundation exit checks | 100% | 0% |
-| 2 Identity and workspaces | In progress; backend foundation tested | 42% | 58% |
+| 2 Identity and workspaces | In progress; backend foundation tested | 48% | 52% |
 | 3 Applications, keys and ingestion | Not started | 0% | 100% |
 | 4 Routing and providers | Not started | 0% | 100% |
 | 5 Complete dashboard | Feature work not started; foundation UI exists | 0% | 100% |
 | 6 Operational hardening | Not started; baseline observability/CI exists | 0% | 100% |
 | 7 Release handoff | Not started | 0% | 100% |
 
-Overall v1 estimate: **15% implemented, 85% pending**. Phases have unequal size.
+Overall v1 estimate: **17% implemented, 83% pending**. Phases have unequal size.
 
 ## Module progress
 | Module | Done | Pending | Implemented / remaining |
 |---|---:|---:|---|
 | Tooling, solution, dependency locks | 100% | 0% | Five production layers, DB helper, tests, SDK and package locks |
 | Architecture / persistence foundation | 100% | 0% | EF repositories/UoW, scoped Dapper view, migrations, actual PostgreSQL checks |
-| Accounts / JWT / refresh / MFA / RBAC | 48% | 52% | Identity/Argon2id, JWT issuer, rotating session services, protected MFA store tested; public lifecycle and enforcement/UI pending |
+| Accounts / JWT / refresh / MFA / RBAC | 54% | 46% | Identity/Argon2id, JWT issuer, rotating session services, protected MFA store tested; one-time CLI and HTTPS refresh/logout transport verified; login, enrollment/enforcement/UI pending |
 | Workspaces / membership | 25% | 75% | Persistence, permission rules, locking and last-owner use case; invitations/APIs/step-up pending |
 | Applications / scoped keys | 0% | 100% | Not implemented |
 | Ingestion / idempotency / queue / retries | 0% | 100% | Not implemented; worker is a composition root only |
@@ -50,7 +50,7 @@ Overall v1 estimate: **15% implemented, 85% pending**. Phases have unequal size.
 - Five-minute RS256 issuer with RSA >=3072 bits and kid fingerprint.
   API bearer validation enforces RS256, issuer/audience/type, expiry and current active
   session. /api/v1/auth/session is protected; absent keys and storage failures deny access.
-  Public login, enrollment and refresh-cookie routes remain pending.
+  Public login and enrollment remain pending. Secure refresh/logout cookie endpoints are implemented.
 - TOTP secrets encrypted through ASP.NET Data Protection with account-bound purpose.
   High-entropy recovery code hashes redeem atomically while locking the account.
   Enrollment, login, step-up and recovery HTTP flows/UI are still pending.
@@ -124,8 +124,8 @@ Screenshots in document/screenshots use mocked health responses, without fake de
   API stopped; final rebuild passed with zero warnings/errors.
 
 ## Unresolved work / next steps
-1. Complete Phase 2: one-time bootstrap, registration/invite mode, public JWT validation
-   configuration/bootstrap integration, exact Origin/CSRF and secure rotating cookie endpoints,
+1. Complete Phase 2: registration/invite mode and login, signing-key configuration/bootstrap
+   integration, MFA session strength/step-up,
    lockout/rate limits, email verify/reset mocks and single-use challenges, MFA/recovery
    flows/step-up, immutable audit, workspace/member/session APIs and frontend journeys.
 2. Verify account/session APIs and cross-workspace policies before Phase 3.
@@ -198,3 +198,42 @@ Local build, unit, PostgreSQL, provider-contract and browser checks remain requi
 as appropriate. Future hosted CI work in the development plan is superseded by this
 owner instruction until explicitly changed. No active YAML workflows remain.
 Implementation percentages are unchanged: 15% done / 85% pending.
+## Phase 2 increment — 2026-10-02
+Implemented:
+- One-time AccountBootstrap with transaction-owned persistence and PostgreSQL advisory
+  lock; creates only the initial administrator, rejects existing-account databases.
+- Interactive NotifyHub.Admin CLI reads/confirm passwords without echo, rejects
+  redirected input and password arguments, and suppresses sensitive exception details.
+- HTTPS-only POST /api/v1/auth/refresh and /logout with explicit exact Origin allowlist,
+  session-bound CSRF, rotating HttpOnly/Secure/SameSite Strict cookies scoped to auth,
+  no-store responses and queue-free auth request limits.
+- CLI added to solution with locked dependencies; no production administrator created.
+- Identity-Development.md documents setup, configuration, actual endpoints and limitations.
+  ADR-004 records the transport/bootstrap choices.
+
+Actual commands/results:
+| Command | Result |
+|---|---|
+| dotnet restore NotifyHub.slnx --locked-mode --verbosity quiet | PASS, including new Admin project lockfile |
+| dotnet build NotifyHub.slnx --no-restore --verbosity quiet | PASS, zero warnings/errors |
+| dotnet test backend/tests/NotifyHub.UnitTests --no-build --verbosity quiet | PASS, 20/20 |
+| dotnet test backend/tests/NotifyHub.IntegrationTests --filter FullyQualifiedName~BrowserSessionTests --verbosity quiet | PASS, 13/13 |
+| ./scripts/Test-PostgreSql.ps1 | PASS, 31/31 total integration cases, including actual PostgreSQL |
+| dotnet run --project scripts/NotifyHub.Admin --no-build | PASS, usage only; no account mutation |
+
+New PostgreSQL evidence: two simultaneous bootstrap attempts produce exactly one
+administrator, validation leaves no account, repeat setup refuses replacement,
+Argon2id/confirmed-email/lockout flags persist, wrong-CSRF cookie logout leaves
+session active, correct-CSRF logout revokes it. Existing session/MFA/workspace and
+HTTP regression checks also passed. HTTP transport tests verify Origin/HTTPS denial,
+cookie attributes, no refresh secret in JSON, replay revocation, logout and 429 limits.
+UI source and screenshots unchanged; browser tests were not repeated for this
+backend-only increment. Provider tests remain not applicable until adapters exist.
+
+Next Phase 2 work: verified credential login and lockout, single-use authentication
+challenges, registration/invites/reset/verification with local email mocks, MFA
+enrollment/recovery/login/step-up, audit and workspace/member/session APIs and
+modern frontend flows. Do not skip Phase 2 exit checks to start ingestion.
+Bootstrap alone does not provide a login or bypass mandatory administrator MFA.
+Production key protection and distributed rate limits remain unverified.
+Current estimates: overall 17% done / 83% pending; Phase 2 48% done / 52% pending.

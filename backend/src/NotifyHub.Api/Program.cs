@@ -11,6 +11,7 @@ builder.WebHost.ConfigureKestrel(options => options.Limits.MaxRequestBodySize = 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddOpenApi();
 builder.Services.AddAccessAuthentication(builder.Configuration);
+builder.Services.AddBrowserSessions(builder.Configuration);
 builder.Services.AddExceptionHandler<SafeExceptionHandler>();
 builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
 {
@@ -29,6 +30,8 @@ app.Use(async (context, next) =>
 });
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
+app.MapBrowserSessions();
 app.MapGet("/api/v1/auth/session", (HttpContext context) =>
 {
     context.Response.Headers.CacheControl = "no-store";

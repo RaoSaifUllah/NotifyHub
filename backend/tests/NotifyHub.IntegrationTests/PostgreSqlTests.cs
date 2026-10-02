@@ -77,6 +77,47 @@ public class PostgreSqlTests
             await using var provider = services.BuildServiceProvider();
             await using var scope = provider.CreateAsyncScope();
             var users = scope.ServiceProvider.GetRequiredService<UserManager<AccountUser>>();
+            var bootstrap = new AccountBootstrap(db, users, unit, TimeProvider.System);
+            await Assert.ThrowsAsync<ArgumentException>(() => bootstrap.CreateAdministratorAsync("invalid-email",
+                "Local-Only-Test-Password1!", CancellationToken.None));
+            Assert.False(await admin.Users.AnyAsync());
+            async Task<Guid?> CompeteBootstrap(string email)
+            {
+                await using var competingDb = Context(wb.ConnectionString);
+                await competingDb.Database.OpenConnectionAsync();
+                await competingDb.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('search_path', {schema}, false)");
+                var bootstrapServices = new ServiceCollection();
+                bootstrapServices.AddLogging();
+                bootstrapServices.AddScoped(_ => competingDb);
+                bootstrapServices.AddIdentityCore<AccountUser>().AddEntityFrameworkStores<NotifyHubDbContext>();
+                bootstrapServices.AddScoped<IUserStore<AccountUser>>(_ =>
+                    new SecureUserStore(competingDb, protection) { AutoSaveChanges = false });
+                bootstrapServices.AddScoped<IPasswordHasher<AccountUser>, Argon2PasswordHasher>();
+                await using var bootstrapProvider = bootstrapServices.BuildServiceProvider();
+                await using var bootstrapScope = bootstrapProvider.CreateAsyncScope();
+                var competingBootstrap = new AccountBootstrap(competingDb,
+                    bootstrapScope.ServiceProvider.GetRequiredService<UserManager<AccountUser>>(),
+                    new UnitOfWork(competingDb), TimeProvider.System);
+                try
+                {
+                    return await competingBootstrap.CreateAdministratorAsync(email,
+                        "Local-Only-Test-Password1!", CancellationToken.None);
+                }
+                catch (InvalidOperationException) { return null; }
+            }
+            var bootstrapResults = await Task.WhenAll(
+                CompeteBootstrap("first-admin@notifyhub.example"), CompeteBootstrap("second-admin@notifyhub.example"));
+            Assert.Single(bootstrapResults, x => x is not null);
+            var administratorId = bootstrapResults.Single(x => x is not null)!.Value;
+            var administrator = await admin.Users.AsNoTracking().SingleAsync(x => x.Id == administratorId);
+            Assert.True(administrator.IsSystemAdministrator);
+            Assert.True(administrator.EmailConfirmed);
+            Assert.True(administrator.LockoutEnabled);
+            Assert.False(administrator.TwoFactorEnabled);
+            Assert.StartsWith("$argon2id$", administrator.PasswordHash);
+            await Assert.ThrowsAsync<InvalidOperationException>(() => bootstrap.CreateAdministratorAsync(
+                "second-admin@notifyhub.example", "Local-Only-Test-Password1!", CancellationToken.None));
+            Assert.Equal(1, await admin.Users.CountAsync());
             var accounts = new AccountRepository(users);
             var creation = await accounts.CreateAsync("owner@notifyhub.example", "Local-Only-Test-Password1!", DateTimeOffset.UtcNow, CancellationToken.None);
             Assert.True(creation.Succeeded);
@@ -120,6 +161,11 @@ public class PostgreSqlTests
             var logout = await sessionService.CreateAsync(creation.UserId, CancellationToken.None);
             await sessionService.RevokeAsync(creation.UserId, logout.SessionId, CancellationToken.None);
             Assert.False(await sessionsRepository.IsActiveAsync(creation.UserId, logout.SessionId, DateTimeOffset.UtcNow, CancellationToken.None));
+            var browserLogout = await sessionService.CreateAsync(creation.UserId, CancellationToken.None);
+            Assert.False(await sessionService.RevokeFromRefreshAsync(browserLogout.RefreshToken, "wrong-csrf", CancellationToken.None));
+            Assert.True(await sessionsRepository.IsActiveAsync(creation.UserId, browserLogout.SessionId, DateTimeOffset.UtcNow, CancellationToken.None));
+            Assert.True(await sessionService.RevokeFromRefreshAsync(browserLogout.RefreshToken, browserLogout.CsrfToken, CancellationToken.None));
+            Assert.False(await sessionsRepository.IsActiveAsync(creation.UserId, browserLogout.SessionId, DateTimeOffset.UtcNow, CancellationToken.None));
             var reset = await sessionService.CreateAsync(creation.UserId, CancellationToken.None);
             var resetUser = await users.FindByIdAsync(creation.UserId.ToString()) ?? throw new InvalidOperationException();
             Assert.True((await users.UpdateSecurityStampAsync(resetUser)).Succeeded);

@@ -12,6 +12,7 @@
     <Project Path="backend/tests/NotifyHub.UnitTests/NotifyHub.UnitTests.csproj" />
   </Folder>
   <Folder Name="/scripts/">
+    <Project Path="scripts/NotifyHub.Admin/NotifyHub.Admin.csproj" />
     <Project Path="scripts/NotifyHub.Database/NotifyHub.Database.csproj" />
   </Folder>
 </Solution>

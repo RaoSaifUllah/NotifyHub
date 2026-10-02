@@ -63,6 +63,19 @@ public sealed class SessionService(ISessionRepository repository, IUnitOfWork un
         }, cancellationToken);
         return credentials;
     }
+    public async Task<bool> RevokeFromRefreshAsync(string rawToken, string csrfToken, CancellationToken cancellationToken)
+    {
+        if (rawToken.Length is < 1 or > 512 || csrfToken.Length is < 1 or > 512) return false;
+        var revoked = false;
+        await unit.ExecuteAsync(async token =>
+        {
+            var match = await repository.LockByTokenHashAsync(secrets.Hash(rawToken), token);
+            if (match is null || !secrets.Matches(csrfToken, match.Value.Session.CsrfHash)) return;
+            match.Value.Session.Revoke(clock.GetUtcNow());
+            revoked = true;
+        }, cancellationToken);
+        return revoked;
+    }
     public Task RevokeAsync(Guid userId, Guid sessionId, CancellationToken cancellationToken) =>
         unit.ExecuteAsync(async token =>
         {
