@@ -30,6 +30,7 @@ public static class AccessAuthentication
                     configuration["Security:Jwt:Issuer"] ?? "NotifyHub",
                     configuration["Security:Jwt:Audience"] ?? "NotifyHub.Web"));
                 services.AddScoped<SessionService>();
+                services.AddScoped<ICredentialLogin, CredentialLogin>();
             }
             catch (Exception)
             {

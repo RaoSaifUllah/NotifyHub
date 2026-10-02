@@ -292,3 +292,61 @@ BEGIN
 END $EF$;
 COMMIT;
 
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261002100710_CredentialLogin') THEN
+    ALTER TABLE refresh_sessions ADD "MfaVerifiedAt" timestamp with time zone;
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261002100710_CredentialLogin') THEN
+    ALTER TABLE "AspNetUsers" ADD "LastTotpStep" bigint;
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261002100710_CredentialLogin') THEN
+    CREATE TABLE authentication_challenges (
+        "Id" uuid NOT NULL,
+        "UserId" uuid NOT NULL,
+        "TokenHash" character varying(64) NOT NULL,
+        "CsrfHash" character varying(64) NOT NULL,
+        "SecurityStamp" character varying(256) NOT NULL,
+        "Purpose" character varying(20) NOT NULL,
+        "ExpiresAt" timestamp with time zone NOT NULL,
+        "ConsumedAt" timestamp with time zone,
+        "Attempts" integer NOT NULL,
+        CONSTRAINT "PK_authentication_challenges" PRIMARY KEY ("Id"),
+        CONSTRAINT "FK_authentication_challenges_AspNetUsers_UserId" FOREIGN KEY ("UserId") REFERENCES "AspNetUsers" ("Id") ON DELETE CASCADE
+    );
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261002100710_CredentialLogin') THEN
+    CREATE UNIQUE INDEX "IX_authentication_challenges_TokenHash" ON authentication_challenges ("TokenHash");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261002100710_CredentialLogin') THEN
+    CREATE INDEX "IX_authentication_challenges_UserId" ON authentication_challenges ("UserId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20261002100710_CredentialLogin') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20261002100710_CredentialLogin', '10.0.12');
+    END IF;
+END $EF$;
+COMMIT;
+

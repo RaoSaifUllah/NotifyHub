@@ -4,5 +4,6 @@ public sealed class AccountUser : IdentityUser<Guid>
 {
     public bool IsSystemAdministrator { get; set; }
     public bool Disabled { get; set; }
+    public long? LastTotpStep { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
 }

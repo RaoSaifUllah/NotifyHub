@@ -8,6 +8,19 @@ namespace NotifyHub.Infrastructure.Identity;
 public sealed class SecureUserStore(NotifyHubDbContext db, IDataProtectionProvider protection)
     : UserStore<AccountUser, IdentityRole<Guid>, NotifyHubDbContext, Guid>(db)
 {
+    public override Task<IdentityResult> UpdateAsync(AccountUser user, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (AutoSaveChanges) throw new InvalidOperationException("Identity writes require a Unit of Work.");
+        var entry = Context.Entry(user);
+        if (entry.State == EntityState.Detached) Context.Attach(user);
+        user.ConcurrencyStamp = Guid.NewGuid().ToString();
+        // Base UpdateAsync re-attaches on every call, accepting uncommitted stamps
+        // as originals. Preserve the first DB snapshot across compound commands.
+        if (entry.State != EntityState.Added) entry.State = EntityState.Modified;
+        return Task.FromResult(IdentityResult.Success);
+    }
+
     private IDataProtector Protector(AccountUser user) =>
         protection.CreateProtector("NotifyHub.Identity.Authenticator.v1").CreateProtector(user.Id.ToString());
     public override Task SetAuthenticatorKeyAsync(AccountUser user, string key, CancellationToken cancellationToken) =>

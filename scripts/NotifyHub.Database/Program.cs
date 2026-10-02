@@ -18,7 +18,7 @@ try
     Console.WriteLine($"Test database suffix: {m.Database?.EndsWith("_test") == true}");
     await using var connection = new NpgsqlConnection(migration);
     await connection.OpenAsync();
-    await using var command = new NpgsqlCommand("SELECT current_setting('server_version'), (SELECT rolsuper FROM pg_roles WHERE rolname = current_user), (SELECT rolcreaterole FROM pg_roles WHERE rolname = current_user), (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name NOT IN ('__EFMigrationsHistory','workspaces','workspace_summaries','workspace_members','AspNetUsers','AspNetRoles','AspNetUserClaims','AspNetUserLogins','AspNetUserRoles','AspNetUserTokens','AspNetRoleClaims','refresh_sessions','refresh_tokens'))", connection);
+    await using var command = new NpgsqlCommand("SELECT current_setting('server_version'), (SELECT rolsuper FROM pg_roles WHERE rolname = current_user), (SELECT rolcreaterole FROM pg_roles WHERE rolname = current_user), (SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name NOT IN ('__EFMigrationsHistory','workspaces','workspace_summaries','workspace_members','AspNetUsers','AspNetRoles','AspNetUserClaims','AspNetUserLogins','AspNetUserRoles','AspNetUserTokens','AspNetRoleClaims','refresh_sessions','refresh_tokens','authentication_challenges'))", connection);
     await using var reader = await command.ExecuteReaderAsync();
     await reader.ReadAsync();
     var unrelatedTables = reader.GetInt64(3);

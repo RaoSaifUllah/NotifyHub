@@ -694,6 +694,7 @@
           "Microsoft.EntityFrameworkCore.Relational": "[10.0.12, )",
           "NotifyHub.Application": "[1.0.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.0, )",
+          "Otp.NET": "[1.4.1, )",
           "System.IdentityModel.Tokens.Jwt": "[8.23.0, )"
         }
       }

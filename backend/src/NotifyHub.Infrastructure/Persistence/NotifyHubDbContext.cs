@@ -19,6 +19,16 @@ public sealed class NotifyHubDbContext(DbContextOptions<NotifyHubDbContext> opti
         member.Property(x => x.Version).IsRowVersion();
         member.HasOne<Workspace>().WithMany().HasForeignKey(x => x.WorkspaceId).OnDelete(DeleteBehavior.Restrict);
         member.HasOne<AccountUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Restrict);
+        var challenge = modelBuilder.Entity<AuthenticationChallenge>();
+        challenge.ToTable("authentication_challenges");
+        challenge.HasKey(x => x.Id);
+        challenge.Property(x => x.Version).IsRowVersion();
+        challenge.Property(x => x.TokenHash).HasMaxLength(64);
+        challenge.Property(x => x.CsrfHash).HasMaxLength(64);
+        challenge.Property(x => x.SecurityStamp).HasMaxLength(256);
+        challenge.Property(x => x.Purpose).HasConversion<string>().HasMaxLength(20);
+        challenge.HasIndex(x => x.TokenHash).IsUnique();
+        challenge.HasOne<AccountUser>().WithMany().HasForeignKey(x => x.UserId).OnDelete(DeleteBehavior.Cascade);
         var session = modelBuilder.Entity<RefreshSession>();
         session.ToTable("refresh_sessions");
         session.HasKey(x => x.Id);

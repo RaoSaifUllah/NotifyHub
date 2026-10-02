@@ -54,7 +54,7 @@ public static class BrowserSessionEndpoints
                 ClearCookie(context.Response);
                 return Results.Unauthorized();
             }
-            WriteCookie(context.Response, credentials.RefreshToken);
+            WriteSessionCookies(context.Response, credentials);
             return Results.Ok(new { credentials.AccessToken, credentials.CsrfToken, credentials.SessionId, expiresIn = 300 });
         });
         group.MapPost("/logout", async (HttpContext context, BrowserSessionPolicy policy, CancellationToken cancellationToken) =>
@@ -73,7 +73,21 @@ public static class BrowserSessionEndpoints
     public static void WriteCookie(HttpResponse response, string refreshToken) =>
         response.Cookies.Append(RefreshCookie, refreshToken, CookieOptions());
 
-    private static void ClearCookie(HttpResponse response) => response.Cookies.Delete(RefreshCookie, CookieOptions());
+    public static void WriteSessionCookies(HttpResponse response, SessionCredentials credentials)
+    {
+        WriteCookie(response, credentials.RefreshToken);
+        // Only the CSRF value is JS-readable. JWT stays in memory and refresh stays HttpOnly.
+        response.Cookies.Append("__Host-notifyhub-csrf", credentials.CsrfToken, CsrfCookieOptions());
+    }
+    private static CookieOptions CsrfCookieOptions() => new()
+    {
+        Secure = true, HttpOnly = false, SameSite = SameSiteMode.Strict, Path = "/", IsEssential = true
+    };
+    private static void ClearCookie(HttpResponse response)
+    {
+        response.Cookies.Delete(RefreshCookie, CookieOptions());
+        response.Cookies.Delete("__Host-notifyhub-csrf", CsrfCookieOptions());
+    }
 
     private static CookieOptions CookieOptions() => new()
     {

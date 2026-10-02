@@ -22,9 +22,23 @@ or HTTP bootstrap endpoint.
 
 The operator-supplied initial email is marked confirmed. The account starts with
 lockout enabled and system-administrator status, but without enrolled MFA.
-MFA enrollment/login/step-up flows are still pending; setup alone does not grant
-a usable privileged browser session. Do not treat this as a production-ready
+Password login, enrollment and recovery are now implemented; fresh step-up and
+account management are pending. Setup alone does not bypass required MFA. Do not treat this as a production-ready
 authentication installation.
+
+## Local signing key setup
+
+From the NotifyHub root:
+
+    dotnet run --project scripts/NotifyHub.Admin -- init-signing-key
+
+Creates a 3072-bit RSA private PEM under ignored secrets/jwt and atomically configures
+Security:Jwt in ignored local settings. Existing keys/configuration are not replaced.
+Windows ACL inheritance is disabled with access only for the operator identity;
+Unix creation uses owner-only permissions. Use the same authorized identity for
+the local API, or explicitly configure the production service account separately.
+The operator must arrange a restricted backup. This command is initial setup,
+not key rotation or a verified production secret-management workflow.
 
 ## Signing and browser transport
 
@@ -54,7 +68,8 @@ POST /api/v1/auth/refresh reads the __Secure-notifyhub-refresh cookie and one
 X-CSRF-Token header. Exact Origin, HTTPS, bounded inputs and session-bound CSRF
 are enforced. On success it atomically rotates the token and returns accessToken,
 csrfToken, sessionId and expiresIn (300 seconds). The refresh secret is only in
-Set-Cookie, never JSON.
+Set-Cookie, never JSON. A separate __Host-notifyhub-csrf cookie is JS-readable
+and bound server-side to the session; it contains no JWT or refresh token.
 
 Cookie attributes: HttpOnly, Secure, SameSite=Strict, Path=/api/v1/auth, no Domain.
 It is a browser-session cookie; server-side seven-day idle/thirty-day absolute
@@ -71,9 +86,9 @@ The auth transport has an in-process, per-client-IP fixed-window limit of
 configuration remain operational work. Do not trust arbitrary forwarded headers.
 
 GET /api/v1/auth/session validates the bearer token and current session; it
-does not replace login. Public credential login, enrollment, invites and
-verification/reset challenges are still pending, so browser refresh cannot be
-initiated from the current UI.
+does not replace login. Login and enrollment are available from /login when HTTPS, exact Origin and
+signing/database setup are configured. Invites, registration and verification/reset
+challenges remain pending.
 
 ## Verification
 
@@ -85,3 +100,37 @@ The HTTP fixture verifies transport/cookie contracts against real SessionService
 logic with a controlled repository. The PostgreSQL fixture separately verifies
 actual locks, bootstrap concurrency, rollback, refresh races and cookie-logout
 revocation. No fixture bootstraps a real operator account or sends notifications.
+## Credential login and MFA
+
+POST /api/v1/auth/login accepts email/password behind the HTTPS/Origin boundary.
+Unknown, disabled, unconfirmed, locked and incorrect credentials have the same
+generic failure response. Password hashing work is bounded by a two-slot,
+queue-free HTTP gate in addition to per-IP rate limits and account lockout.
+
+Administrators and owners cannot receive a session without MFA. A correct
+password returns either EnrollMfa or VerifyMfa with a random five-minute challenge
+and CSRF value. Enrollment also returns the manual authenticator key. No session
+cookie or access token is issued for this intermediate response.
+
+POST /api/v1/auth/mfa/complete accepts challengeToken/code/recovery and an
+X-CSRF-Token header. It verifies the password-proof security stamp, expiry,
+attempts, account lockout and purpose. Codes use six digits, SHA1, a 30-second
+TOTP interval and a one-step network-delay window. Matched steps are accepted
+once only. Five failed attempts close the challenge. Starting another password
+challenge does not reset the account's failed-MFA count.
+
+Successful enrollment enables MFA and returns ten one-time recovery codes.
+Save them securely; the UI does not persist them and removes the view after
+confirmation. Recovery codes are 43-character random values and stored as hashes.
+Successful recovery changes the security stamp, invalidating earlier sessions.
+
+The /login page supports password, manual-key enrollment, MFA verification and
+recovery. Access tokens never enter localStorage/sessionStorage. Refresh and logout
+are serialized using Web Locks across tabs; BroadcastChannel carries only
+change/revocation signals. HTTPS is required for the session/CSRF cookies.
+
+Current limits: MFA step-up, MFA management/rotation, invitations/registration,
+reset/verification, immutable audit and session/workspace screens are unfinished.
+Frontend E2E auth uses local mocked HTTP responses; real PostgreSQL verifies the
+credential use cases separately. Full HTTPS browser-to-live-backend setup remains
+unverified. Do not claim production security verification or ASVS conformance.

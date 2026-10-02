@@ -53,7 +53,7 @@ public sealed class BrowserSessionTests
         var json = await response.Content.ReadAsStringAsync();
         Assert.DoesNotContain(credentials.RefreshToken, json);
         Assert.DoesNotContain("refreshToken", json);
-        var cookie = response.Headers.GetValues("Set-Cookie").Single();
+        var cookie = response.Headers.GetValues("Set-Cookie").Single(x => x.StartsWith("__Secure-notifyhub-refresh=", StringComparison.Ordinal));
         Assert.Contains("__Secure-notifyhub-refresh=", cookie);
         Assert.Contains("path=/api/v1/auth", cookie);
         Assert.Contains("secure", cookie);
@@ -82,7 +82,7 @@ public sealed class BrowserSessionTests
         var response = await client.SendAsync(request);
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         Assert.NotNull(fixture.Repository.Session.RevokedAt);
-        Assert.Contains("expires=", response.Headers.GetValues("Set-Cookie").Single());
+        Assert.Contains("expires=", response.Headers.GetValues("Set-Cookie").Single(x => x.StartsWith("__Secure-notifyhub-refresh=", StringComparison.Ordinal)));
         using var afterLogout = Request("/refresh", credentials.RefreshToken, credentials.CsrfToken);
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(afterLogout)).StatusCode);
     }

@@ -45,7 +45,7 @@ public class PostgreSqlTests
             await Execute(owner, $"GRANT USAGE ON SCHEMA {schema} TO {quote.QuoteIdentifier(wb.Username!)}, {quote.QuoteIdentifier(rb.Username!)}");
             await Execute(owner, $"GRANT SELECT, INSERT, UPDATE, DELETE ON {schema}.workspaces TO {quote.QuoteIdentifier(wb.Username!)}");
             await Execute(owner, $"GRANT SELECT ON {schema}.workspace_summaries TO {quote.QuoteIdentifier(rb.Username!)}");
-            foreach (var table in new[] { "AspNetUsers", "AspNetRoles", "AspNetUserClaims", "AspNetUserLogins", "AspNetUserRoles", "AspNetUserTokens", "AspNetRoleClaims", "workspace_members", "refresh_sessions", "refresh_tokens" })
+            foreach (var table in new[] { "AspNetUsers", "AspNetRoles", "AspNetUserClaims", "AspNetUserLogins", "AspNetUserRoles", "AspNetUserTokens", "AspNetRoleClaims", "workspace_members", "refresh_sessions", "refresh_tokens", "authentication_challenges" })
                 await Execute(owner, $"GRANT SELECT, INSERT, UPDATE, DELETE ON {schema}.{quote.QuoteIdentifier(table)} TO {quote.QuoteIdentifier(wb.Username!)}");
             await using var db = Context(wb.ConnectionString);
             await db.Database.OpenConnectionAsync();
@@ -118,6 +118,98 @@ public class PostgreSqlTests
             await Assert.ThrowsAsync<InvalidOperationException>(() => bootstrap.CreateAdministratorAsync(
                 "second-admin@notifyhub.example", "Local-Only-Test-Password1!", CancellationToken.None));
             Assert.Equal(1, await admin.Users.CountAsync());
+            var loginStore = (SecureUserStore)scope.ServiceProvider.GetRequiredService<IUserStore<AccountUser>>();
+            var credentialLogin = new CredentialLogin(db, users, loginStore, new Argon2PasswordHasher(),
+                unit, new TokenSecrets(), new TestIssuer(), TimeProvider.System);
+            Assert.Null(await credentialLogin.BeginAsync("missing@notifyhub.example", "incorrect-password", CancellationToken.None));
+            var administratorEmail = administrator.Email!;
+            Assert.Null(await credentialLogin.BeginAsync(administratorEmail, "incorrect-password", CancellationToken.None));
+            var enrollment1 = await credentialLogin.BeginAsync(administratorEmail, "Local-Only-Test-Password1!", CancellationToken.None);
+            Assert.NotNull(enrollment1);
+            Assert.Equal("EnrollMfa", enrollment1.Status);
+            Assert.Null(enrollment1.Credentials);
+            Assert.NotNull(enrollment1.AuthenticatorKey);
+            var enrollment = await credentialLogin.BeginAsync(administratorEmail, "Local-Only-Test-Password1!", CancellationToken.None);
+            Assert.NotNull(enrollment);
+            Assert.Null(await credentialLogin.CompleteMfaAsync(enrollment1.ChallengeToken!, enrollment1.CsrfToken!,
+                "bad-code", false, CancellationToken.None));
+            Assert.Null(await credentialLogin.CompleteMfaAsync(enrollment.ChallengeToken!, "wrong-csrf",
+                "bad-code", false, CancellationToken.None));
+            Assert.Null(await credentialLogin.CompleteMfaAsync(enrollment.ChallengeToken!, enrollment.CsrfToken!,
+                "bad-code", false, CancellationToken.None));
+            var enrollmentOtp = new Totp(Base32Encoding.ToBytes(enrollment.AuthenticatorKey!)).ComputeTotp();
+            var enrolled = await credentialLogin.CompleteMfaAsync(enrollment.ChallengeToken!, enrollment.CsrfToken!,
+                enrollmentOtp, false, CancellationToken.None);
+            Assert.NotNull(enrolled);
+            Assert.Equal(10, enrolled.RecoveryCodes.Length);
+            Assert.All(enrolled.RecoveryCodes, value => Assert.Equal(43, value.Length));
+            var enrolledSession = await admin.Set<RefreshSession>().AsNoTracking().SingleAsync(x => x.Id == enrolled.Credentials.SessionId);
+            Assert.NotNull(enrolledSession.MfaVerifiedAt);
+            var administratorAfterEnrollment = await admin.Users.AsNoTracking().SingleAsync(x => x.Id == administratorId);
+            Assert.True(administratorAfterEnrollment.TwoFactorEnabled);
+            Assert.NotNull(administratorAfterEnrollment.LastTotpStep);
+            var challengeRow = await admin.Set<AuthenticationChallenge>().AsNoTracking()
+                .SingleAsync(x => x.TokenHash == new TokenSecrets().Hash(enrollment.ChallengeToken!));
+            Assert.NotNull(challengeRow.ConsumedAt);
+            Assert.NotEqual(enrollment.ChallengeToken, challengeRow.TokenHash);
+            var enrolledRecovery = await admin.UserTokens.AsNoTracking().SingleAsync(x => x.UserId == administratorId && x.Name == "RecoveryCodes");
+            Assert.DoesNotContain(enrolled.RecoveryCodes[0], enrolledRecovery.Value);
+            Assert.Null(await credentialLogin.CompleteMfaAsync(enrollment.ChallengeToken!, enrollment.CsrfToken!,
+                enrollmentOtp, false, CancellationToken.None));
+            var verification = await credentialLogin.BeginAsync(administratorEmail, "Local-Only-Test-Password1!", CancellationToken.None);
+            Assert.NotNull(verification);
+            Assert.Equal("VerifyMfa", verification.Status);
+            Assert.Null(verification.AuthenticatorKey);
+            // Even a valid code is rejected when its time step already authenticated enrollment.
+            Assert.Null(await credentialLogin.CompleteMfaAsync(verification.ChallengeToken!, verification.CsrfToken!,
+                enrollmentOtp, false, CancellationToken.None));
+            var recovered = await credentialLogin.CompleteMfaAsync(verification.ChallengeToken!, verification.CsrfToken!,
+                enrolled.RecoveryCodes[0], true, CancellationToken.None);
+            Assert.NotNull(recovered);
+            Assert.Empty(recovered.RecoveryCodes);
+            Assert.False(await new SessionRepository(db).IsActiveAsync(administratorId, enrolled.Credentials.SessionId,
+                DateTimeOffset.UtcNow, CancellationToken.None));
+            var afterRecovery = await credentialLogin.BeginAsync(administratorEmail, "Local-Only-Test-Password1!", CancellationToken.None);
+            Assert.NotNull(afterRecovery);
+            Assert.Null(await credentialLogin.CompleteMfaAsync(afterRecovery.ChallengeToken!, afterRecovery.CsrfToken!,
+                enrolled.RecoveryCodes[0], true, CancellationToken.None));
+            Assert.NotNull(await credentialLogin.CompleteMfaAsync(afterRecovery.ChallengeToken!, afterRecovery.CsrfToken!,
+                enrolled.RecoveryCodes[1], true, CancellationToken.None));
+            var simultaneousMfa = await credentialLogin.BeginAsync(administratorEmail, "Local-Only-Test-Password1!", CancellationToken.None);
+            Assert.NotNull(simultaneousMfa);
+            async Task<LoginCompletion?> CompleteSameMfaChallenge()
+            {
+                await using var competingDb = Context(wb.ConnectionString);
+                await competingDb.Database.OpenConnectionAsync();
+                await competingDb.Database.ExecuteSqlInterpolatedAsync($"SELECT set_config('search_path', {schema}, false)");
+                var competingServices = new ServiceCollection();
+                competingServices.AddLogging();
+                competingServices.AddScoped(_ => competingDb);
+                competingServices.AddIdentityCore<AccountUser>().AddEntityFrameworkStores<NotifyHubDbContext>();
+                competingServices.AddScoped<IUserStore<AccountUser>>(_ => new SecureUserStore(competingDb, protection) { AutoSaveChanges = false });
+                await using var competingProvider = competingServices.BuildServiceProvider();
+                await using var competingScope = competingProvider.CreateAsyncScope();
+                var competingUsers = competingScope.ServiceProvider.GetRequiredService<UserManager<AccountUser>>();
+                var competingStore = competingScope.ServiceProvider.GetRequiredService<IUserStore<AccountUser>>();
+                return await new CredentialLogin(competingDb, competingUsers, competingStore, new Argon2PasswordHasher(),
+                    new UnitOfWork(competingDb), new TokenSecrets(), new TestIssuer(), TimeProvider.System)
+                    .CompleteMfaAsync(simultaneousMfa.ChallengeToken!, simultaneousMfa.CsrfToken!, enrolled.RecoveryCodes[2], true, CancellationToken.None);
+            }
+            var mfaRaces = await Task.WhenAll(CompleteSameMfaChallenge(), CompleteSameMfaChallenge());
+            Assert.Single(mfaRaces, x => x is not null);
+            db.ChangeTracker.Clear();
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                var rejectedMfa = await credentialLogin.BeginAsync(administratorEmail, "Local-Only-Test-Password1!", CancellationToken.None);
+                Assert.NotNull(rejectedMfa);
+                Assert.Null(await credentialLogin.CompleteMfaAsync(rejectedMfa.ChallengeToken!, rejectedMfa.CsrfToken!,
+                    "bad-code", false, CancellationToken.None));
+            }
+            Assert.Equal(3, (await admin.Users.AsNoTracking().SingleAsync(x => x.Id == administratorId)).AccessFailedCount);
+            for (var i = 0; i < 2; i++)
+                Assert.Null(await credentialLogin.BeginAsync(administratorEmail, "incorrect-password", CancellationToken.None));
+            Assert.Null(await credentialLogin.BeginAsync(administratorEmail, "Local-Only-Test-Password1!", CancellationToken.None));
+            Assert.True((await admin.Users.AsNoTracking().SingleAsync(x => x.Id == administratorId)).LockoutEnd > DateTimeOffset.UtcNow);
             var accounts = new AccountRepository(users);
             var creation = await accounts.CreateAsync("owner@notifyhub.example", "Local-Only-Test-Password1!", DateTimeOffset.UtcNow, CancellationToken.None);
             Assert.True(creation.Succeeded);
@@ -128,6 +220,20 @@ public class PostgreSqlTests
             Assert.True(await users.CheckPasswordAsync(await users.FindByIdAsync(creation.UserId.ToString()) ?? throw new InvalidOperationException(), "Local-Only-Test-Password1!"));
             var duplicate = await accounts.CreateAsync("OWNER@notifyhub.example", "Local-Only-Test-Password1!", DateTimeOffset.UtcNow, CancellationToken.None);
             Assert.False(duplicate.Succeeded);
+            Assert.Null(await credentialLogin.BeginAsync("owner@notifyhub.example", "Local-Only-Test-Password1!", CancellationToken.None));
+            var confirmedMember = await users.FindByIdAsync(creation.UserId.ToString()) ?? throw new InvalidOperationException();
+            confirmedMember.EmailConfirmed = true;
+            await unit.ExecuteAsync(async token => Assert.True((await users.UpdateAsync(confirmedMember)).Succeeded), CancellationToken.None);
+            var memberLogin = await credentialLogin.BeginAsync("owner@notifyhub.example", "Local-Only-Test-Password1!", CancellationToken.None);
+            Assert.NotNull(memberLogin?.Credentials);
+            Assert.Equal("Authenticated", memberLogin.Status);
+            Assert.Null((await admin.Set<RefreshSession>().AsNoTracking().SingleAsync(x => x.Id == memberLogin.Credentials!.SessionId)).MfaVerifiedAt);
+            confirmedMember.Disabled = true;
+            await unit.ExecuteAsync(async token => Assert.True((await users.UpdateSecurityStampAsync(confirmedMember)).Succeeded), CancellationToken.None);
+            Assert.Null(await credentialLogin.BeginAsync("owner@notifyhub.example", "Local-Only-Test-Password1!", CancellationToken.None));
+            Assert.False(await new SessionRepository(db).IsActiveAsync(creation.UserId, memberLogin.Credentials!.SessionId, DateTimeOffset.UtcNow, CancellationToken.None));
+            confirmedMember.Disabled = false;
+            await unit.ExecuteAsync(async token => Assert.True((await users.UpdateAsync(confirmedMember)).Succeeded), CancellationToken.None);
             var members = new WorkspaceMembershipRepository(db);
             members.Add(WorkspaceMember.Create(workspace.Id, creation.UserId, WorkspaceRole.Owner));
             await unit.SaveChangesAsync(CancellationToken.None);
@@ -207,6 +313,12 @@ public class PostgreSqlTests
             await using var rawRead = new NpgsqlCommand($"SELECT * FROM {schema}.workspaces LIMIT 1", readConnection);
             denied = await Assert.ThrowsAsync<PostgresException>(() => rawRead.ExecuteReaderAsync());
             Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, denied.SqlState);
+            foreach (var secretTable in new[] { "AspNetUsers", "AspNetUserTokens", "refresh_sessions", "refresh_tokens", "authentication_challenges" })
+            {
+                await using var secretRead = new NpgsqlCommand($"SELECT 1 FROM {schema}.{quote.QuoteIdentifier(secretTable)} LIMIT 1", readConnection);
+                var secretDenied = await Assert.ThrowsAsync<PostgresException>(() => secretRead.ExecuteReaderAsync());
+                Assert.Equal(PostgresErrorCodes.InsufficientPrivilege, secretDenied.SqlState);
+            }
         }
         finally
         {

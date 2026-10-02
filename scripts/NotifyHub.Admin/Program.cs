@@ -7,9 +7,20 @@ using NotifyHub.Infrastructure;
 
 try
 {
+    if (args.Length == 1 && args[0] == "init-test-tls")
+    {
+        TestTlsSetup.Run();
+        return;
+    }
+    if (args.Length == 1 && args[0] == "init-signing-key")
+    {
+        SigningKeySetup.Run();
+        return;
+    }
     if (args.Length != 1 || args[0] != "bootstrap")
     {
         Console.WriteLine("Run from the NotifyHub root: dotnet run --project scripts/NotifyHub.Admin -- bootstrap");
+        Console.WriteLine("Create a local signing key: dotnet run --project scripts/NotifyHub.Admin -- init-signing-key");
         return;
     }
     if (Console.IsInputRedirected)
@@ -36,8 +47,8 @@ try
 }
 catch (Exception exception)
 {
-    Console.Error.WriteLine("Administrator setup failed (" + exception.GetType().Name +
-        "). Details suppressed; verify database setup, account policy and that no accounts already exist.");
+    Console.Error.WriteLine("Identity setup failed (" + exception.GetType().Name +
+        "). Details suppressed; verify the command, local settings, permissions and whether setup was already completed.");
     Environment.ExitCode = 1;
 }
 

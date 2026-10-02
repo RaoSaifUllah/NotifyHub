@@ -10,9 +10,10 @@ public sealed class RefreshSession
     public DateTimeOffset LastSeenAt { get; private set; }
     public DateTimeOffset AbsoluteExpiresAt { get; private set; }
     public DateTimeOffset? RevokedAt { get; private set; }
+    public DateTimeOffset? MfaVerifiedAt { get; private set; }
     public uint Version { get; private set; }
-    public static RefreshSession Create(Guid userId, string stamp, string csrfHash, DateTimeOffset now) =>
-        new() { Id = Guid.NewGuid(), UserId = userId, SecurityStamp = stamp, CsrfHash = csrfHash, CreatedAt = now, LastSeenAt = now, AbsoluteExpiresAt = now.AddDays(30) };
+    public static RefreshSession Create(Guid userId, string stamp, string csrfHash, DateTimeOffset now, DateTimeOffset? mfaVerifiedAt = null) =>
+        new() { Id = Guid.NewGuid(), UserId = userId, SecurityStamp = stamp, CsrfHash = csrfHash, CreatedAt = now, LastSeenAt = now, AbsoluteExpiresAt = now.AddDays(30), MfaVerifiedAt = mfaVerifiedAt };
     public bool IsActive(DateTimeOffset now) => RevokedAt is null && now < AbsoluteExpiresAt && now < LastSeenAt.AddDays(7);
     public void Revoke(DateTimeOffset now) => RevokedAt ??= now;
     public void Touch(DateTimeOffset now) => LastSeenAt = now;

@@ -32,6 +32,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
 app.MapBrowserSessions();
+app.MapCredentialLogin();
 app.MapGet("/api/v1/auth/session", (HttpContext context) =>
 {
     context.Response.Headers.CacheControl = "no-store";

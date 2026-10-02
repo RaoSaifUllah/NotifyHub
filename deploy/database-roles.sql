@@ -12,3 +12,5 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON "AspNetUsers", "AspNetRoles",
 "AspNetRoleClaims", workspace_members TO notifyhub_write;
 GRANT USAGE, SELECT ON SEQUENCE "AspNetUserClaims_Id_seq", "AspNetRoleClaims_Id_seq" TO notifyhub_write;
 GRANT SELECT, INSERT, UPDATE, DELETE ON refresh_sessions, refresh_tokens TO notifyhub_write;
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON authentication_challenges TO notifyhub_write;

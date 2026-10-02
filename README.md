@@ -10,8 +10,8 @@ workspace management, application API keys, routing rules, templates, quiet hour
 and delivery history with retries.
 
 NotifyHub is currently under development. You can run the dashboard preview and
-API locally; notification delivery and the complete account workflow are not yet
-available.
+API locally. Password login and MFA are available after secure account setup;
+notification delivery and full account management remain under development.
 
 ## UI Preview
 
@@ -22,6 +22,10 @@ available.
 ### Dark theme
 
 ![NotifyHub dark theme](document/screenshots/baseline-dark.png)
+
+### Sign-in preview
+
+![NotifyHub sign-in](document/screenshots/login-light.png)
 
 ## How to use
 
@@ -76,3 +80,7 @@ Open another terminal in the project root:
 
 Open the local address printed by Vite. The dashboard lets you view API status,
 switch between light and dark themes, and explore the responsive interface.
+To use account access, follow the [identity setup guide](document/Identity-Development.md)
+to create the initial administrator, generate a local signing key, configure HTTPS
+and approve the exact site origin. Open /login and complete authenticator enrollment.
+Keep the one-time recovery codes somewhere secure.

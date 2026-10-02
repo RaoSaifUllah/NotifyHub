@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Link } from 'react-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useSyncExternalStore } from 'react';
+import { LoginPage } from './LoginPage';
+import { subscribeSession, sessionSnapshot, restoreSession, logout } from './auth';
 import { createRoot } from 'react-dom/client';
 import { t } from './en';
 import './styles.css';
@@ -16,7 +18,18 @@ function Icon({ name, size = 20 }: { name: 'bell' | 'grid' | 'sun' | 'moon' | 'a
   return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">{paths[name]}</svg>;
 }
 
+function ThemePreference() {
+  useEffect(() => {
+    let preference: string | null = null;
+    try { preference = localStorage.getItem('notifyhub-theme'); } catch { /* Nonessential preference. */ }
+    document.documentElement.dataset.theme = preference === 'dark' || (!preference && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+  }, []);
+  return null;
+}
 function App() {
+  const session = useSyncExternalStore(subscribeSession, sessionSnapshot);
+  const [sessionError, setSessionError] = useState('');
+  useEffect(() => { restoreSession().catch(() => { /* Failed restoration never authenticates. */ }); }, []);
   const [dark, setDark] = useState(() => {
     try { const saved = localStorage.getItem('notifyhub-theme'); if (saved) return saved === 'dark'; } catch { /* Theme works without browser storage. */ }
     return matchMedia('(prefers-color-scheme: dark)').matches;
@@ -43,7 +56,8 @@ function App() {
     <a className="skip" href="#main">{t.skip}</a>
     <header>
       <a href="/" className="brand"><span className="brand-mark"><Icon name="bell" /></span>{t.name}</a>
-      <div className="header-actions"><span className="header-caption">{t.tagline}</span>
+      <div className="header-actions"><span className="header-caption">{session ? t.signedIn : t.tagline}</span>
+        {session ? <button className="secondary-button" onClick={() => { setSessionError(''); logout().catch(() => setSessionError(t.authErrors.NETWORK)); }}>{t.signOut}</button> : <Link className="secondary-button" to="/login">{t.signIn}</Link>}
         <button className="icon-button" onClick={() => setDark(!dark)} aria-label={t.theme}><Icon name={dark ? 'sun' : 'moon'} /></button>
       </div>
     </header>
@@ -54,6 +68,7 @@ function App() {
         <div className="sidebar-note"><span className="small-mark"><Icon name="bell" size={16} /></span><p>{t.tagline}</p><small>{t.selfHosted}</small></div>
       </aside>
       <main id="main">
+        {sessionError && <p className="auth-error" role="alert">{sessionError}</p>}
         <div className="page-heading"><div><p className="eyebrow">{t.overview}</p><h1>{t.title}</h1><p className="intro">{t.description}</p></div><span className="badge">{t.phase}</span></div>
         <section className="notice" aria-label={t.phase}><span className="notice-icon"><Icon name="bell" size={18} /></span><p>{t.status}</p></section>
         <div className="grid">
@@ -81,6 +96,6 @@ function NotFoundPage() {
   return <main className="not-found"><span className="brand-mark"><Icon name="bell" /></span><h1>{t.notFound}</h1><p>{t.notFoundDescription}</p><Link to="/">{t.returnOverview}</Link></main>;
 }
 createRoot(document.getElementById('root')!).render(
-  <React.StrictMode><BrowserRouter><Routes><Route path="/" element={<App />} /><Route path="*" element={<NotFoundPage />} /></Routes></BrowserRouter></React.StrictMode>
+  <React.StrictMode><BrowserRouter><ThemePreference /><Routes><Route path="/" element={<App />} /><Route path="/login" element={<LoginPage />} /><Route path="*" element={<NotFoundPage />} /></Routes></BrowserRouter></React.StrictMode>
 );
 
